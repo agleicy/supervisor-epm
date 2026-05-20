@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supervisor Proativo de Projetos — Libbs</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --verde:  #00A651;
+  --verde2: #00CC66;
+  --amarelo:#FDCB14;
+  --dark:   #0D0D0D;
+  --dark2:  #161616;
+  --dark3:  #1E1E1E;
+  --cinza:  #888;
+  --branco: #F5F5F5;
+}
+
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--dark); font-family: 'Inter', sans-serif; }
+
+/* ── DECK ─────────────────────────────────────────────────── */
+.deck { width: 100vw; height: 100vh; position: relative; }
+
+.slide {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .5s ease, transform .5s ease;
+  transform: translateY(24px);
+  padding: 60px;
+}
+.slide.active {
+  opacity: 1; pointer-events: all; transform: translateY(0);
+}
+.slide.out {
+  opacity: 0; transform: translateY(-24px);
+}
+
+/* ── NAV ──────────────────────────────────────────────────── */
+#nav {
+  position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 12px; align-items: center; z-index: 999;
+}
+#nav button {
+  width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid #333;
+  background: #111; color: #aaa; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+#nav button:hover { border-color: var(--verde); color: var(--verde); }
+#counter {
+  color: #555; font-size: 13px; min-width: 60px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* barra de progresso */
+#progress {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: var(--verde); transition: width .4s ease; z-index: 999;
+}
+
+/* ── UTILITÁRIOS ──────────────────────────────────────────── */
+.tag {
+  display: inline-block; padding: 4px 14px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  background: rgba(0,166,81,.15); color: var(--verde); border: 1px solid rgba(0,166,81,.3);
+  margin-bottom: 20px;
+}
+.titulo { font-size: clamp(32px,4vw,56px); font-weight: 700; line-height: 1.15; color: var(--branco); }
+.titulo .verde { color: var(--verde); }
+.titulo .amarelo { color: var(--amarelo); }
+.subtitulo { font-size: clamp(15px,1.6vw,20px); color: var(--cinza); line-height: 1.7; margin-top: 16px; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--verde); margin-bottom: 8px; }
+
+/* colunas */
+.cols { display: grid; gap: 60px; width: 100%; max-width: 1200px; }
+.cols-2 { grid-template-columns: 1fr 1fr; }
+.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cols-60-40 { grid-template-columns: 1.6fr 1fr; }
+.cols-40-60 { grid-template-columns: 1fr 1.6fr; }
+
+/* cards */
+.card {
+  background: var(--dark2); border: 1px solid #222; border-radius: 16px;
+  padding: 28px 32px; position: relative; overflow: hidden;
+}
+.card::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+  background: var(--verde); border-radius: 4px 0 0 4px;
+}
+.card.amarelo::before { background: var(--amarelo); }
+.card .num {
+  font-size: 48px; font-weight: 900; color: var(--verde); line-height: 1;
+  font-variant-numeric: tabular-nums; margin-bottom: 8px;
+}
+.card .num.amarelo { color: var(--amarelo); }
+.card h3 { font-size: 17px; font-weight: 600; color: var(--branco); margin-bottom: 8px; }
+.card p { font-size: 14px; color: var(--cinza); line-height: 1.7; }
+
+/* lista com check */
+.checklist { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.checklist li { display: flex; gap: 14px; align-items: flex-start; font-size: 15px; color: #ccc; line-height: 1.5; }
+.checklist li .icon { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-top: 2px; }
+.checklist li .icon.ok { background: rgba(0,166,81,.2); color: var(--verde); }
+.checklist li .icon.pend { background: rgba(255,255,255,.07); color: #555; }
+
+/* pill de destaque */
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+.pill.verde { background: rgba(0,166,81,.15); color: var(--verde); border: 1px solid rgba(0,166,81,.25); }
+.pill.amarelo { background: rgba(253,203,20,.1); color: var(--amarelo); border: 1px solid rgba(253,203,20,.25); }
+
+/* linha separadora */
+.divider { width: 48px; height: 3px; background: var(--verde); border-radius: 2px; margin: 20px 0; }
+
+/* stat grande */
+.stat-num { font-size: clamp(56px, 8vw, 96px); font-weight: 900; color: var(--verde); line-height: 1; }
+.stat-label { font-size: 16px; color: var(--cinza); margin-top: 8px; }
+
+/* timeline */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item { display: flex; gap: 20px; position: relative; }
+.tl-item:not(:last-child)::after {
+  content: ''; position: absolute; left: 11px; top: 26px; width: 2px;
+  height: calc(100% + 4px); background: #222;
+}
+.tl-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--verde); background: var(--dark); flex-shrink: 0; margin-top: 2px; position: relative; z-index: 1; }
+.tl-dot.active-dot { background: var(--verde); }
+.tl-content { padding-bottom: 24px; }
+.tl-date { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--verde); margin-bottom: 4px; }
+.tl-text { font-size: 14px; color: #aaa; line-height: 1.6; }
+
+/* quote */
+.quote { font-size: clamp(18px,2.2vw,28px); font-weight: 300; color: var(--branco); line-height: 1.6; border-left: 3px solid var(--verde); padding-left: 24px; }
+
+/* fundo decorativo */
+.bg-circle {
+  position: absolute; border-radius: 50%; filter: blur(80px); opacity: .12; pointer-events: none;
+}
+
+/* ── SLIDE 1 — CAPA ───────────────────────────────────────── */
+#s1 { background: var(--dark); }
+#s1 .bg-circle:nth-child(1) { width: 600px; height: 600px; background: var(--verde); top: -200px; right: -100px; }
+#s1 .bg-circle:nth-child(2) { width: 300px; height: 300px; background: var(--amarelo); bottom: -100px; left: 60px; }
+#s1 .inner { max-width: 860px; width: 100%; position: relative; }
+#s1 .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; color: var(--verde); margin-bottom: 28px; }
+#s1 .main-title { font-size: clamp(44px,6vw,80px); font-weight: 900; line-height: 1.1; color: var(--branco); }
+#s1 .main-title span { color: var(--verde); }
+#s1 .sub { font-size: clamp(15px,1.6vw,20px); color: var(--cinza); margin-top: 20px; max-width: 600px; line-height: 1.7; }
+#s1 .footer { margin-top: 48px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+#s1 .badge { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; }
+#s1 .badge span { color: var(--branco); font-weight: 500; }
+#s1 .dot { width: 4px; height: 4px; border-radius: 50%; background: #333; }
+
+/* ── SLIDE 2 — CENARIO ────────────────────────────────────── */
+#s2 { background: var(--dark); }
+#s2 .bg-circle { width: 500px; height: 500px; background: #ff4444; top: -100px; right: -100px; }
+
+/* ── SLIDE 5 — O QUE ENTREGA ──────────────────────────────── */
+#s5 .cards-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; width: 100%; max-width: 1200px; }
+
+/* ── SLIDE 7 — FUNCIONA ───────────────────────────────────── */
+#s7 .steps { display: flex; flex-direction: column; gap: 20px; }
+#s7 .step { display: flex; gap: 20px; align-items: flex-start; }
+#s7 .step-num { width: 36px; height: 36px; border-radius: 8px; background: var(--verde); color: #000; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#s7 .step-body h4 { font-size: 15px; font-weight: 600; color: var(--branco); margin-bottom: 4px; }
+#s7 .step-body p { font-size: 13px; color: var(--cinza); line-height: 1.6; }
+
+/* ── SLIDE 8 — MLOPS ──────────────────────────────────────── */
+#s8 .pipe { display: flex; align-items: stretch; gap: 0; width: 100%; max-width: 1100px; }
+#s8 .pipe-item { flex: 1; padding: 28px 24px; background: var(--dark2); border: 1px solid #222; position: relative; }
+#s8 .pipe-item:not(:last-child)::after {
+  content: '›'; position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+  font-size: 22px; color: var(--verde); z-index: 1;
+}
+#s8 .pipe-item:first-child { border-radius: 12px 0 0 12px; }
+#s8 .pipe-item:last-child  { border-radius: 0 12px 12px 0; }
+#s8 .p-num { font-size: 28px; font-weight: 900; color: var(--verde); margin-bottom: 8px; }
+#s8 .p-title { font-size: 14px; font-weight: 700; color: var(--branco); margin-bottom: 8px; }
+#s8 .p-body  { font-size: 12px; color: var(--cinza); line-height: 1.6; }
+
+/* ── SLIDE 11 — ROADMAP ───────────────────────────────────── */
+#s11 .tl-horizontal { display: flex; gap: 0; width: 100%; max-width: 1100px; position: relative; }
+#s11 .tl-horizontal::before {
+  content: ''; position: absolute; top: 12px; left: 0; right: 0; height: 2px; background: #222;
+}
+#s11 .tl-col { flex: 1; padding-top: 36px; padding-right: 16px; position: relative; }
+#s11 .tl-col::before {
+  content: ''; position: absolute; top: 6px; left: 0; width: 16px; height: 16px;
+  border-radius: 50%; border: 2px solid var(--verde); background: var(--dark);
+}
+#s11 .tl-col.done::before { background: var(--verde); }
+#s11 .tl-col .tl-when { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--verde); margin-bottom: 8px; }
+#s11 .tl-col .tl-what { font-size: 13px; color: #aaa; line-height: 1.6; }
+
+/* ── SLIDE 12 — ENCERRAMENTO ──────────────────────────────── */
+#s12 { background: var(--dark); }
+#s12 .bg-circle:nth-child(1) { width: 700px; height: 700px; background: var(--verde); bottom: -300px; right: -200px; }
+#s12 .bg-circle:nth-child(2) { width: 250px; height: 250px; background: var(--amarelo); top: -50px; left: 100px; }
+#s12 .inner { max-width: 700px; text-align: center; position: relative; }
+#s12 .big { font-size: clamp(52px,7vw,88px); font-weight: 900; color: var(--branco); line-height: 1; }
+#s12 .big span { color: var(--verde); }
+
+/* número de slide no canto */
+.slide-num {
+  position: fixed; top: 28px; right: 40px; font-size: 12px;
+  color: #333; font-variant-numeric: tabular-nums; z-index: 998;
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div class="slide-num" id="slideNum">1 / 12</div>
+
+<div class="deck">
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 1 — CAPA
+════════════════════════════════════════════════════════════ -->
+<div class="slide active" id="s1">
+  <div class="bg-circle"></div>
+  <div class="bg-circle"></div>
+  <div class="inner">
+    <p class="eyebrow">Libbs Farmacêutica  ·  TI-Dados-IA  ·  PoC  ·  Maio 2026</p>
+    <h1 class="main-title">Supervisor <span>Proativo</span><br>de Projetos<br>Corporativos</h1>
+    <p class="sub">Inteligência artificial integrada ao EPM da Libbs para antecipar riscos e apoiar decisões gerenciais antes que os desvios se concretizem.</p>
+    <div class="footer">
+      <span class="badge">Plataforma <span>Databricks</span></span>
+      <span class="dot"></span>
+      <span class="badge">IA <span>Claude Opus 4.6</span></span>
+      <span class="dot"></span>
+      <span class="badge">Status <span style="color:var(--verde)">PoC em Produção</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 2 — O CENÁRIO ATUAL
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <div class="bg-circle"></div>
+  <div class="cols cols-60-40" style="max-width:1200px;width:100%;align-items:center;gap:80px">
+    <div>
+      <div class="tag">O Cenário Atual</div>
+      <h2 class="titulo">O monitoramento ainda é <span class="amarelo">manual e reativo</span></h2>
+      <div class="divider"></div>
+      <p class="subtitulo">A Libbs possui oportunidades de evolução no acompanhamento de projetos estratégicos, especialmente na capacidade de <strong style="color:#ddd">antecipar desvios de prazo</strong> antes que impactem a execução.</p>
+      <p class="subtitulo" style="margin-top:12px">Hoje, perder um prazo é quase sempre uma surpresa — e não deveria ser.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card amarelo">
+        <h3>Visibilidade Limitada</h3>
+        <p>Dados EPM dispersos, sem visão consolidada em tempo real por projeto ou portfólio</p>
+      </div>
+      <div class="card amarelo">
+        <h3>Monitoramento Manual</h3>
+        <p>Acompanhamento de cronogramas, marcos e dependências ainda majoritariamente manual</p>
+      </div>
+      <div class="card amarelo">
+        <h3>Decisão Reativa</h3>
+        <p>Sem alertas automáticos, projetos entram em atraso antes de qualquer ação gerencial</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 3 — O OBJETIVO DA PoC
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <div style="max-width:900px;width:100%">
+    <div class="tag">Objetivo da PoC</div>
+    <h2 class="titulo" style="font-size:clamp(28px,3.5vw,48px);margin-bottom:32px">
+      Investigar e validar se é possível construir um <span class="verde">Supervisor Proativo</span> com IA e dados integrados
+    </h2>
+    <div class="card" style="margin-bottom:20px;padding:32px 36px">
+      <p style="font-size:17px;color:#ccc;line-height:1.8">
+        Capaz de <strong style="color:var(--branco)">monitorar tarefas, dependências e marcos</strong>, identificar riscos de atraso com antecedência e apoiar a tomada de decisão gerencial <strong style="color:var(--branco)">antes que os desvios se concretizem</strong>.
+      </p>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <span class="pill verde">✓ Databricks como plataforma</span>
+      <span class="pill verde">✓ Agent Bricks + Claude Opus 4.6</span>
+      <span class="pill verde">✓ App em linguagem natural</span>
+      <span class="pill amarelo">↗ Relatório go/no-go para MVP</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 4 — POR QUE FAZEMOS ISSO
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <div class="cols cols-2" style="max-width:1200px;width:100%;align-items:center">
+    <div>
+      <div class="tag">Por Que Fazemos Isso</div>
+      <div class="quote">
+        Queremos que a IA trabalhe em segundo plano para que o gestor possa agir com <strong>tempo e clareza</strong> — não com urgência e retrabalho.
+      </div>
+      <div class="divider" style="margin-top:32px"></div>
+      <p class="subtitulo">Mais do que uma ferramenta de alerta, queremos construir um <strong style="color:#ddd">novo padrão de gestão de projetos na Libbs</strong> — onde as decisões são tomadas com base em dados históricos e análise preditiva.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div style="padding:24px;border-radius:12px;background:rgba(0,166,81,.08);border:1px solid rgba(0,166,81,.2)">
+        <p class="label">Antecipação</p>
+        <p style="font-size:14px;color:#aaa;line-height:1.6">Identificar riscos antes que se tornem problemas irreversíveis</p>
+      </div>
+      <div style="padding:24px;border-radius:12px;background:rgba(0,166,81,.08);border:1px solid rgba(0,166,81,.2)">
+        <p class="label">Clareza</p>
+        <p style="font-size:14px;color:#aaa;line-height:1.6">Dados em tempo real para decisões fundamentadas, não intuição</p>
+      </div>
+      <div style="padding:24px;border-radius:12px;background:rgba(0,166,81,.08);border:1px solid rgba(0,166,81,.2)">
+        <p class="label">Autonomia Gerencial</p>
+        <p style="font-size:14px;color:#aaa;line-height:1.6">O esforço humano concentrado no que exige julgamento — não em extração de dados</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 5 — O QUE O SUPERVISOR ENTREGA
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <div style="max-width:1200px;width:100%">
+    <div style="margin-bottom:32px">
+      <div class="tag">Capacidades</div>
+      <h2 class="titulo">O que o Supervisor Entrega</h2>
+    </div>
+    <div class="cards-grid">
+      <div class="card">
+        <div class="num">01</div>
+        <h3>Padrões Históricos</h3>
+        <p>Identificação de padrões de atraso por projeto, portfólio e líder com base em dados históricos EPM</p>
+      </div>
+      <div class="card">
+        <div class="num">02</div>
+        <h3>Score de Saúde</h3>
+        <p>Score de saúde do projeto por período — visão consolidada e compreensível para gestores não técnicos</p>
+      </div>
+      <div class="card">
+        <div class="num">03</div>
+        <h3>Dependências em Risco</h3>
+        <p>Detecção de dependências em risco antes do efeito cascata entre tarefas e projetos</p>
+      </div>
+      <div class="card">
+        <div class="num">04</div>
+        <h3>Simulação de Impacto</h3>
+        <p>Simulação do impacto de desvios no prazo final do projeto antes que aconteçam</p>
+      </div>
+      <div class="card">
+        <div class="num">05</div>
+        <h3>Resumos Executivos</h3>
+        <p>Análise automática em linguagem natural com pontos críticos e recomendações acionáveis</p>
+      </div>
+      <div class="card amarelo">
+        <div class="num amarelo">06</div>
+        <h3>Alertas via Teams</h3>
+        <p>Envio proativo de alertas via Microsoft Teams sem intervenção humana — às 9h todos os dias úteis</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 6 — RESULTADO VALIDADO (ground truth)
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="cols cols-2" style="max-width:1200px;width:100%;align-items:center;gap:80px">
+    <div>
+      <div class="tag">Resultado em Produção</div>
+      <h2 class="titulo">O agente já está <span class="verde">funcionando com dados reais</span></h2>
+      <div class="divider"></div>
+      <p class="subtitulo">Ground truth calculado diretamente no Databricks SQL Warehouse — maio/2026.</p>
+      <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
+        <div class="pill verde">✓ OTIF por projeto e portfólio</div>
+        <div class="pill verde">✓ Atrasos críticos e não críticos</div>
+        <div class="pill verde">✓ Marcos dos próximos 14 dias</div>
+        <div class="pill verde">✓ Alerta diário no Teams ativo</div>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div class="stat-num">39</div>
+      <div class="stat-label">projetos Produto + Meta<br>com OTIF abaixo de 80%</div>
+      <div style="margin-top:32px;padding:20px 24px;background:var(--dark2);border-radius:12px;border:1px solid #222;text-align:left">
+        <p class="label">Precisão do agente</p>
+        <p style="font-size:13px;color:#aaa;line-height:1.7;margin-top:4px">Tolerância de ±5 projetos.<br>SQL validado com fórmula correta:<br><code style="color:var(--verde);font-size:12px">AVG(TRY_CAST(REPLACE(OTIFdaTarefa,'%','') AS DOUBLE))</code></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 7 — COMO FUNCIONA
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="cols cols-2" style="max-width:1200px;width:100%;align-items:center;gap:80px">
+    <div>
+      <div class="tag">Arquitetura</div>
+      <h2 class="titulo">Como o Supervisor <span class="verde">Funciona</span></h2>
+      <div class="divider"></div>
+      <p class="subtitulo">Do texto à análise em 15 a 30 segundos.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Pergunta em linguagem natural</h4>
+          <p>O gestor digita qualquer pergunta no app. Sem formulários, sem SQL, sem filtros manuais.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>SQL gerado por IA</h4>
+          <p>Claude Opus 4.6 interpreta a pergunta e gera SQL Spark correto com todas as regras de negócio EPM embutidas.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Execução em dados reais</h4>
+          <p>Databricks SQL Warehouse executa contra Unity Catalog (tarefas_epm, dim_projetos, atribuicoes_epm) em tempo real.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>Análise executiva</h4>
+          <p>Claude analisa os resultados e entrega resumo com pontos críticos marcados e recomendações acionáveis.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 8 — GOVERNANÇA MLOPS
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s8">
+  <div style="max-width:1200px;width:100%">
+    <div style="margin-bottom:40px">
+      <div class="tag">Governança</div>
+      <h2 class="titulo">O Agente Aprende — <span class="verde">Com Controle</span></h2>
+      <p class="subtitulo" style="margin-top:8px">Diferente de um chatbot estático, o Supervisor é um agente de ML registrado no Unity Catalog com fluxo challenger → champion.</p>
+    </div>
+    <div class="pipe">
+      <div class="pipe-item">
+        <div class="p-num">01</div>
+        <div class="p-title">Desenvolvimento</div>
+        <div class="p-body">Ajuste de prompt, schema SQL e regras de negócio. Versão registrada como <em>challenger</em> no Unity Catalog.</div>
+      </div>
+      <div class="pipe-item">
+        <div class="p-num">02</div>
+        <div class="p-title">Avaliação</div>
+        <div class="p-body">4 casos de teste com ground truth real. Threshold: ≥75% devem passar. Versão reprovada não vai a produção.</div>
+      </div>
+      <div class="pipe-item">
+        <div class="p-num">03</div>
+        <div class="p-title">Promoção</div>
+        <div class="p-body">Challenger aprovado promovido automaticamente a <em>champion</em>. Apenas o champion serve os usuários.</div>
+      </div>
+      <div class="pipe-item">
+        <div class="p-num" style="color:var(--amarelo)">04</div>
+        <div class="p-title">Monitoramento</div>
+        <div class="p-body">Snapshot mensal + alerta diário no Teams. Métricas rastreadas no MLflow Experiment do UC.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 9 — STACK TECNOLÓGICA
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s9">
+  <div class="cols cols-2" style="max-width:1200px;width:100%;align-items:center;gap:80px">
+    <div>
+      <div class="tag">Stack Tecnológica</div>
+      <h2 class="titulo">100% <span class="verde">Databricks</span></h2>
+      <div class="divider"></div>
+      <p class="subtitulo">Sem nova infraestrutura. Sem novos contratos. Sem dependência de ferramentas externas.</p>
+      <p class="subtitulo" style="margin-top:12px">Tudo construído dentro da plataforma que a Libbs já usa e já paga.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <p class="label">Frontend</p>
+        <h3>Databricks Apps (Streamlit)</h3>
+        <p>App web em produção com autenticação OAuth corporativa. Acessível pelo navegador, sem instalação.</p>
+      </div>
+      <div class="card">
+        <p class="label">Inteligência Artificial</p>
+        <h3>Claude Opus 4.6</h3>
+        <p>Via Foundation Model API do Databricks. Duas chamadas por consulta: geração de SQL + análise executiva.</p>
+      </div>
+      <div class="card">
+        <p class="label">Dados & Governança</p>
+        <h3>Unity Catalog</h3>
+        <p>tarefas_epm · dim_projetos · atribuicoes_epm · snapshot_mensal_epm · MLflow Model Registry</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 10 — CRITÉRIOS DE SUCESSO
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s10">
+  <div class="cols cols-2" style="max-width:1200px;width:100%;align-items:center;gap:80px">
+    <div>
+      <div class="tag">Critérios de Sucesso</div>
+      <h2 class="titulo">Como Saberemos que <span class="verde">Foi um Sucesso</span></h2>
+      <div class="divider"></div>
+      <p class="subtitulo">O sucesso será demonstrado quando a PoC validar, em ambiente de teste:</p>
+      <div style="margin-top:24px">
+        <div style="display:inline-flex;gap:24px">
+          <div style="text-align:center">
+            <div style="font-size:40px;font-weight:900;color:var(--verde)">4</div>
+            <div style="font-size:12px;color:var(--cinza)">já atingidos</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:40px;font-weight:900;color:#444">2</div>
+            <div style="font-size:12px;color:var(--cinza)">em andamento</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="checklist">
+      <li><span class="icon ok">✓</span> Agente responde perguntas sobre projetos em linguagem natural com dados reais do EPM</li>
+      <li><span class="icon ok">✓</span> Score de saúde calculado e apresentado de forma compreensível para gestores não técnicos</li>
+      <li><span class="icon ok">✓</span> Ao menos um risco de atraso identificado proativamente antes de ser reportado manualmente</li>
+      <li><span class="icon ok">✓</span> Alerta automático enviado via Teams sem intervenção humana</li>
+      <li><span class="icon pend">·</span> Gestores-piloto conseguem usar o supervisor sem suporte técnico</li>
+      <li><span class="icon pend">·</span> Relatório de viabilidade entregue com recomendação clara de go/no-go para o MVP</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 11 — PRÓXIMOS PASSOS
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s11">
+  <div style="max-width:1200px;width:100%">
+    <div style="margin-bottom:48px">
+      <div class="tag">Roadmap</div>
+      <h2 class="titulo">Do Piloto ao <span class="verde">MVP</span></h2>
+    </div>
+    <div class="tl-horizontal">
+      <div class="tl-col done">
+        <div class="tl-when">Hoje — Mai/26</div>
+        <div class="tl-what">App em produção. OTIF, atrasos, marcos e resumo executivo funcionando. Modelo v8 no Unity Catalog.</div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-when">Jun/2026</div>
+        <div class="tl-what">Piloto com gestores EPM. Alerta diário Teams (9h). Snapshot mensal automatizado via Workflows.</div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-when">Jul/2026</div>
+        <div class="tl-what">Permissões equipe EPM. App como aba no canal Teams de Projetos Corporativos.</div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-when">Ago/2026</div>
+        <div class="tl-what">Avaliação go/no-go para MVP. Decisão baseada nos critérios de sucesso da PoC.</div>
+      </div>
+      <div class="tl-col">
+        <div class="tl-when">Set/2026 →</div>
+        <div class="tl-what">Se go: expansão para Agente BP RH + modelos preditivos de risco de atraso.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SLIDE 12 — ENCERRAMENTO
+════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s12">
+  <div class="bg-circle"></div>
+  <div class="bg-circle"></div>
+  <div class="inner">
+    <div class="big">Vamos <span>construir</span><br>juntos?</div>
+    <p style="font-size:17px;color:var(--cinza);margin-top:24px;line-height:1.7;max-width:540px;margin-left:auto;margin-right:auto;text-align:center">
+      O Supervisor Proativo de Projetos Corporativos está validado como PoC.<br>O próximo passo é o piloto com gestores EPM em junho.
+    </p>
+    <div style="margin-top:40px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+      <span class="pill verde">gleiciany.cardoso@libbs.com.br</span>
+      <span class="pill verde">TI-Dados-IA · Libbs Farmacêutica</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- ── NAV ─────────────────────────────────────────────────── -->
+<div id="nav">
+  <button id="btnPrev" onclick="go(-1)">‹</button>
+  <span id="counter">1 / 12</span>
+  <button id="btnNext" onclick="go(1)">›</button>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total  = slides.length;
+let cur = 0;
+
+function go(dir) {
+  const next = cur + dir;
+  if (next < 0 || next >= total) return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('out');
+  setTimeout(() => slides[cur].classList.remove('out'), 500);
+  cur = next;
+  slides[cur].classList.add('active');
+  update();
+}
+
+function update() {
+  document.getElementById('counter').textContent  = `${cur+1} / ${total}`;
+  document.getElementById('slideNum').textContent  = `${cur+1} / ${total}`;
+  document.getElementById('progress').style.width  = `${((cur+1)/total)*100}%`;
+  document.getElementById('btnPrev').style.opacity = cur === 0 ? '.3' : '1';
+  document.getElementById('btnNext').style.opacity = cur === total-1 ? '.3' : '1';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown'  || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                       go(-1);
+});
+
+// swipe
+let sx = 0;
+document.addEventListener('touchstart', e => sx = e.touches[0].clientX);
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - sx;
+  if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+});
+
+update();
+</script>
+</body>
+</html>
